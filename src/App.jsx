@@ -6,8 +6,16 @@ import AppointmentList from './components/AppointmentList';
 import MedicalHistorySection from './components/MedicalHistorySection';
 import OwnerList from './components/OwnerList';
 import OwnerDetail from './components/OwnerDetail';
+import RecentVisits from './components/RecentVisits';
 import Modal from './components/Modal';
 import { getOwnerPatients, loadPeople, savePeople } from './utils/owners';
+import { getRecentVisits, toLocalDateString } from './utils/visits';
+
+// Fecha local 'YYYY-MM-DD' de hace n días (para los datos de ejemplo)
+const daysAgo = (n) => {
+  const now = new Date();
+  return toLocalDateString(new Date(now.getFullYear(), now.getMonth(), now.getDate() - n));
+};
 
 const INITIAL_OWNERS = [
   { id: 'o1', name: 'Laura Martínez', phone: '310 456 7890' },
@@ -75,6 +83,65 @@ const INITIAL_APPOINTMENTS = [
     notes: 'Revisión de peso y chequeo dental',
     createdAt: '2026-10-30T07:50:00.000Z',
   },
+  // Visitas pasadas de ejemplo, relativas a hoy (solo afectan a quien no tiene datos guardados)
+  {
+    id: '103',
+    patientId: '1',
+    petNameSnapshot: 'Max',
+    speciesSnapshot: 'Perro',
+    ownersSnapshot: [
+      { name: 'Laura Martínez', phone: '310 456 7890' },
+      { name: 'Carlos Martínez', phone: '311 222 3344' },
+    ],
+    reason: 'Control general',
+    date: daysAgo(0),
+    time: '08:00',
+    status: 'Completada',
+    notes: 'Visita de hoy',
+    createdAt: '2026-10-30T07:50:00.000Z',
+  },
+  {
+    id: '104',
+    patientId: '2',
+    petNameSnapshot: 'Luna',
+    speciesSnapshot: 'Gato',
+    ownersSnapshot: [{ name: 'Andrés Pérez', phone: '315 987 6543' }],
+    reason: 'Desparasitación',
+    date: daysAgo(15),
+    time: '10:30',
+    status: 'Completada',
+    notes: 'Visita de hace 15 días',
+    createdAt: '2026-10-30T07:50:00.000Z',
+  },
+  {
+    id: '105',
+    patientId: '3',
+    petNameSnapshot: 'Coco',
+    speciesSnapshot: 'Gato',
+    ownersSnapshot: [{ name: 'Laura Martínez', phone: '310 456 7890' }],
+    reason: 'Vacunación',
+    date: daysAgo(29),
+    time: '16:00',
+    status: 'Cancelada',
+    notes: 'Visita de hace 29 días (último día de la ventana)',
+    createdAt: '2026-10-30T07:50:00.000Z',
+  },
+  {
+    id: '106',
+    patientId: '1',
+    petNameSnapshot: 'Max',
+    speciesSnapshot: 'Perro',
+    ownersSnapshot: [
+      { name: 'Laura Martínez', phone: '310 456 7890' },
+      { name: 'Carlos Martínez', phone: '311 222 3344' },
+    ],
+    reason: 'Urgencia',
+    date: daysAgo(31),
+    time: '12:00',
+    status: 'Completada',
+    notes: 'Visita de hace 31 días (debe quedar fuera de la vista)',
+    createdAt: '2026-10-30T07:50:00.000Z',
+  },
 ];
 
 const INITIAL_MEDICAL_RECORDS = [
@@ -136,7 +203,7 @@ export default function App() {
   // Responsable abierto en su modal (muestra todas sus mascotas)
   const [openedOwnerId, setOpenedOwnerId] = useState(null);
 
-  // Pestaña activa ('all' | 'patients' | 'appointments' | 'history' | 'owners')
+  // Pestaña activa ('all' | 'patients' | 'appointments' | 'history' | 'owners' | 'recent')
   const [activeTab, setActiveTab] = useState('all');
 
   useEffect(() => {
@@ -236,6 +303,8 @@ export default function App() {
     (a) => a.status === 'Pendiente'
   ).length;
 
+  const recentVisitsCount = getRecentVisits(appointments).length;
+
   return (
     <div className="app-wrapper">
       <header className="app-header">
@@ -308,6 +377,13 @@ export default function App() {
             onClick={() => setActiveTab('owners')}
           >
             4. 👨‍👩‍👧 Responsables ({owners.length})
+          </button>
+          <button
+            type="button"
+            className={`tab-btn ${activeTab === 'recent' ? 'active' : ''}`}
+            onClick={() => setActiveTab('recent')}
+          >
+            5. 🗓️ Últimos 30 días ({recentVisitsCount})
           </button>
         </nav>
       </header>
@@ -386,6 +462,20 @@ export default function App() {
               owners={owners}
               patients={patients}
               onOpenOwner={handleOpenOwner}
+            />
+          </section>
+        )}
+
+        {/* FUNCIONALIDAD 5: VISITAS DE LOS ÚLTIMOS 30 DÍAS (solo lectura + CSV) */}
+        {(activeTab === 'all' || activeTab === 'recent') && (
+          <section className="module-block" id="modulo-ultimos-30-dias">
+            <div className="module-banner">
+              <h2>5. 🗓️ Visitas de los Últimos 30 Días</h2>
+            </div>
+            <RecentVisits
+              appointments={appointments}
+              patients={patients}
+              owners={owners}
             />
           </section>
         )}

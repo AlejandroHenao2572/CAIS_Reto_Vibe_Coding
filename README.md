@@ -17,7 +17,7 @@ Es el **frontend de la aplicación**, construido con **Vite + React (JavaScript 
 
 ## ✨ ¿Qué hace?
 
-La pantalla tiene **4 módulos**, accesibles desde las pestañas superiores o juntos en la *Vista Completa*:
+La pantalla tiene **5 módulos**, accesibles desde las pestañas superiores o juntos en la *Vista Completa*:
 
 1. **🐾 Pacientes y sus responsables:**
    - Formulario para dar de alta una mascota (nombre, especie: Perro/Gato/Otro, raza y edad) con **uno o varios responsables** (nombre y teléfono cada uno). El botón **+ Agregar otro responsable** añade más filas; cada fila puede ser un responsable nuevo o uno **ya registrado** (se elige de una lista).
@@ -26,6 +26,7 @@ La pantalla tiene **4 módulos**, accesibles desde las pestañas superiores o ju
 2. **📅 Citas / visitas:** agendar una cita para un paciente registrado (motivo, fecha, hora, estado y observaciones), cambiar su estado (Pendiente / Completada / Cancelada), filtrarlas por estado y eliminarlas. Cada cita muestra a todos los responsables de la mascota.
 3. **📋 Historial clínico:** notas médicas por paciente (fecha, diagnóstico breve y tratamiento), visibles desde el módulo o desde la ficha de la mascota.
 4. **👨‍👩‍👧 Responsables:** directorio de responsables con el número de mascotas de cada uno; al abrir uno se ven todas sus mascotas y desde ahí se puede saltar a la ficha de cada mascota.
+5. **🗓️ Visitas de los últimos 30 días:** tabla de solo lectura con las citas desde hace 29 días hasta hoy (ambos inclusive, hora local), de la más reciente a la más antigua, con mascota, responsables, fecha, hora, motivo y estado. Las citas futuras y las de más de 30 días no aparecen. El botón **⬇ Exportar CSV** descarga `visitas_ultimos_30_dias_YYYY-MM-DD.csv` (separador `;`, UTF-8 con BOM para Excel) con las columnas Mascota, Responsable, Fecha y Motivo; varios responsables van en una sola celda separados por ` / `.
 
 ### Reto 2 — una mascota puede tener varios responsables
 
@@ -33,6 +34,33 @@ La pantalla tiene **4 módulos**, accesibles desde las pestañas superiores o ju
 - Un responsable se reconoce por **nombre + teléfono** (sin importar mayúsculas, espacios ni el formato del teléfono): al registrar otra mascota con los mismos datos se **reutiliza** el responsable en lugar de duplicarlo, y así toda una familia queda enlazada.
 - Si se elimina la última mascota de un responsable, el responsable también desaparece del directorio.
 - Los datos guardados por la versión anterior (un solo propietario por mascota) **se migran automáticamente** al abrir la app.
+
+### Reto 3 — Visitas de los últimos 30 días con exportación a CSV
+
+**Criterios de aceptación considerados**
+
+1. Existe una vista con las visitas de los últimos 30 días.
+2. Las visitas más antiguas **no** aparecen.
+3. "Exportar" descarga un `.csv` con mascota, responsable(s), fecha y motivo.
+4. Todo lo que ya funcionaba sigue funcionando (pacientes, responsables, citas, historial, migración, persistencia).
+
+**Decisiones de diseño**
+
+- Ventana: desde (hoy − 29 días) hasta hoy, ambos inclusive, comparando cadenas `YYYY-MM-DD` en hora **local** (nunca `new Date('YYYY-MM-DD')`, que se interpreta en UTC y desplaza un día).
+- Las citas futuras quedan fuera; se incluyen todos los estados y el estado se muestra como *badge*.
+- Orden: más reciente primero (fecha y hora descendente).
+- Varios responsables: en una sola celda, `Nombre (teléfono)` separados por ` / `.
+- Sin visitas: estado vacío con el estilo `empty-state` y botón de exportar deshabilitado.
+- Formato CSV: cabecera `Mascota;Responsable;Fecha;Motivo`, separador `;`, comillas dobles duplicadas y campos con `;`, saltos de línea o `"` entre comillas, BOM `﻿` (tildes correctas en Excel) y saltos `\r\n`. Archivo `visitas_ultimos_30_dias_YYYY-MM-DD.csv`.
+- Los responsables se obtienen con `getPatientOwners` y `getAppointmentSnapshotOwners` de `owners.js` (paciente vivo y, si ya no existe, el *snapshot* de la cita), sin duplicar lógica.
+
+**Cambios realizados**
+
+- `src/utils/visits.js` (nuevo): funciones puras `toLocalDateString`, `getRecentVisits`, `buildVisitsCsv` y `downloadCsv`, más los *helpers* `getVisitDetails` y `formatGuardians`.
+- `src/components/RecentVisits.jsx` (nuevo): componente de solo lectura con contador, botón **⬇ Exportar CSV** y tabla (mascota, responsables, fecha, hora, motivo, estado).
+- `src/App.jsx`: pestaña *5. 🗓️ Últimos 30 días (n)*, sección `module-block` visible con `activeTab === 'all' || 'recent'`, y 4 citas de ejemplo (hace 0, 15, 29 y 31 días) para demostrar el criterio 2. No se tocaron los *handlers* existentes.
+- `src/App.css`: estilos mínimos para la tabla y el botón deshabilitado (el resto reutiliza clases existentes).
+- Sin librerías nuevas, sin cambios en las claves de `localStorage` ni en el modelo de datos, y sin modificar `AppointmentForm`, `AppointmentList` ni `AppointmentCard`.
 
 ---
 
@@ -69,6 +97,8 @@ Con la app abierta en **Vista Completa**:
 3. **Abrir un responsable → ver todas sus mascotas:** en esa ventana haz clic en **Laura Martínez** (o usa el módulo *4. Responsables → Ver mascotas*): se listan todas sus mascotas (Max y Coco) y cada una abre su ficha con **Abrir mascota**.
 4. **Lo anterior sigue funcionando:** agenda una cita en el módulo 2 (aparece con todos los responsables), pulsa **✓ Completar** y filtra por *Completada*; agrega una nota médica en el módulo 3; elimina una mascota con **Eliminar**. Al recargar la página (`F5`) los datos se conservan.
 
+5. **Visitas de los últimos 30 días:** abre la pestaña *5. 🗓️ Últimos 30 días*. Los datos de ejemplo traen visitas de hace 0, 15 y 29 días (aparecen) y una de hace 31 días (no aparece). Pulsa **⬇ Exportar CSV** y ábrelo en Excel: deben verse las 4 columnas, las tildes bien y los responsables múltiples en una celda. Estos datos de ejemplo solo se cargan a quien no tiene datos guardados; con datos previos, agenda citas con fecha pasada desde el módulo 2.
+
 Para volver a los datos de ejemplo, ejecuta `localStorage.clear()` en la consola del navegador y recarga.
 
 ---
@@ -88,7 +118,8 @@ CAIS_Reto_Vibe_Coding/
     ├── App.jsx                       # Estado global (pacientes, responsables, citas, notas) y modales
     ├── App.css
     ├── utils/
-    │   └── owners.js                 # Relación mascota-responsables, persistencia y migración
+    │   ├── owners.js                 # Relación mascota-responsables, persistencia y migración
+    │   └── visits.js                 # Ventana de 30 días, construcción y descarga del CSV
     └── components/
         ├── PatientForm.jsx           # Módulo 1: alta de mascota con uno o varios responsables
         ├── PatientList.jsx           # Módulo 1: directorio de pacientes
@@ -99,6 +130,7 @@ CAIS_Reto_Vibe_Coding/
         ├── MedicalHistorySection.jsx # Módulo 3: historial clínico y notas médicas
         ├── OwnerList.jsx             # Módulo 4: directorio de responsables
         ├── OwnerDetail.jsx           # Módulo 4: todas las mascotas de un responsable
+        ├── RecentVisits.jsx          # Módulo 5: visitas de los últimos 30 días y exportar CSV
         └── Modal.jsx                 # Ventana modal compartida
 ```
 
